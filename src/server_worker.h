@@ -15,6 +15,7 @@
 #include "game_object.h"
 #include "constants.h"
 
+extern std::shared_mutex output_mtx;
 extern std::shared_ptr<Grid> grid;
 
 extern thread_local std::unordered_set<uWS::WebSocket<true, true, PointerToPlayer>*> thread_clients;

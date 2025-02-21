@@ -123,7 +123,10 @@ void ServerWorker::HandleMessage(auto *ws, std::string_view str_message, uWS::Op
     json message = json::parse(str_message);
     std::string type = message.value("type", "");
 
-    std::cout << message.dump(4) << std::endl;
+    { 
+        std::unique_lock<std::shared_mutex> lock(output_mtx);
+        std::cout << message.dump(4) << std::endl;
+    }
 
     // Handle ping separately.
     if (type == "ping") {
@@ -227,6 +230,7 @@ void ServerWorker::StartServer(int port) {
             ws->getUserData()->player = std::make_shared<Player>();
             ws->getUserData()->player->set_type("player");
             thread_clients.insert(ws);
+            std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cout << "Client connected!" << std::endl;
         },
         .message = [this](auto *ws, std::string_view message, uWS::OpCode opCode) {
@@ -235,13 +239,16 @@ void ServerWorker::StartServer(int port) {
         .close = [](auto *ws, int /*code*/, std::string_view /*message*/) {
             grid->Remove(ws->getUserData()->player);
             thread_clients.erase(ws);
+            std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cout << "Client disconnected!" << std::endl;
         }
     })
     .listen(port, [&](auto *listenSocket) {
         if (listenSocket) {
+            std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cout << "Listening on port " << port << std::endl;
         } else {
+            std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cerr << "Failed to start the server" << std::endl;
         }
     });
