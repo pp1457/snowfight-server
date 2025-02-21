@@ -217,39 +217,44 @@ void HandleThreadObjects(struct us_timer_t * /*t*/) {
 }
 
 void ServerWorker::StartServer(int port) {
-    uWS::App app = uWS::App()
-        .ws<PointerToPlayer>("/*", {
-            .open = [](auto *ws) {
-                ws->getUserData()->player = std::make_shared<Player>();
-                ws->getUserData()->player->set_type("player");
-                thread_clients.insert(ws);
-                std::cout << "Client connected!" << std::endl;
-            },
-            .message = [this](auto *ws, std::string_view message, uWS::OpCode opCode) {
-                HandleMessage(ws, message, opCode);
-            },
-            .close = [](auto *ws, int /*code*/, std::string_view /*message*/) {
-                grid->Remove(ws->getUserData()->player);
-                thread_clients.erase(ws);
-                std::cout << "Client disconnected!" << std::endl;
-            }
-        }).listen(port, [&](auto *listenSocket) {
-            if (listenSocket) {
-                // std::cout << "Listening on port " << port << std::endl;
-            } else {
-                std::cerr << "Failed to start the server" << std::endl;
-            }
-        });
+    // Create an SSL app with required certificate and key file options.
+    uWS::SSLApp sslApp({
+        .key_file_name = "../private/key.pem",
+        .cert_file_name = "../private/cert.pem",
+        // Optionally add a passphrase if needed:
+        //.passphrase = "yourPassphrase"
+    })
+    .ws<PointerToPlayer>("/*", {
+        .open = [](auto *ws) {
+            ws->getUserData()->player = std::make_shared<Player>();
+            ws->getUserData()->player->set_type("player");
+            thread_clients.insert(ws);
+            std::cout << "Client connected!" << std::endl;
+        },
+        .message = [this](auto *ws, std::string_view message, uWS::OpCode opCode) {
+            HandleMessage(ws, message, opCode);
+        },
+        .close = [](auto *ws, int /*code*/, std::string_view /*message*/) {
+            grid->Remove(ws->getUserData()->player);
+            thread_clients.erase(ws);
+            std::cout << "Client disconnected!" << std::endl;
+        }
+    })
+    .listen(port, [&](auto *listenSocket) {
+        if (listenSocket) {
+            std::cout << "Listening on port " << port << std::endl;
+        } else {
+            std::cerr << "Failed to start the server" << std::endl;
+        }
+    });
 
     struct us_loop_t *loop = (struct us_loop_t *) uWS::Loop::get();
     struct us_timer_t *playerTimer = us_create_timer(loop, 0, 0);
-
     us_timer_set(playerTimer, HandleThreadClients, 20, 10);
 
-    // Timer for snowball position updates (every 2000ms)
+    // Timer for snowball position updates (every 250ms)
     struct us_timer_t *objectTimer = us_create_timer(loop, 0, 0);
-    // Fix the timer callback:
     us_timer_set(objectTimer, HandleThreadObjects, 250, 10);
 
-    app.run();
+    sslApp.run();
 }
