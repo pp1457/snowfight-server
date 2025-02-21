@@ -6,7 +6,7 @@
 
 std::shared_ptr<Grid> grid;
 
-thread_local std::unordered_set<uWS::WebSocket<false, true, PointerToPlayer>*> thread_clients;
+thread_local std::unordered_set<uWS::WebSocket<true, true, PointerToPlayer>*> thread_clients;
 thread_local std::unordered_map<std::string, std::shared_ptr<GameObject>> thread_objects;
 
 int main(int argc, char *argv[]) {

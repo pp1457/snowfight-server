@@ -31,14 +31,14 @@ bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
 }
 
 // Applies damage to the object and marks it as dead if health reaches zero.
-void GameObject::Hurt(uWS::WebSocket<false, true, PointerToPlayer>* ws, int damage) {
+void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damage) {
     set_health(std::max(get_health() - damage, 0));
     if (get_health() == 0) { set_is_dead(true); }
     SendMessageToClient(ws, "hit");
 }
 
 // Sends a message to the client with the object's current state.
-void GameObject::SendMessageToClient(uWS::WebSocket<false, true, PointerToPlayer>* ws, std::string type) {
+void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type) {
     auto now = std::chrono::system_clock::now();
     long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();

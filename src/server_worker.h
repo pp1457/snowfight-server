@@ -17,7 +17,7 @@
 
 extern std::shared_ptr<Grid> grid;
 
-extern thread_local std::unordered_set<uWS::WebSocket<false, true, PointerToPlayer>*> thread_clients;
+extern thread_local std::unordered_set<uWS::WebSocket<true, true, PointerToPlayer>*> thread_clients;
 extern thread_local std::unordered_map<std::string, std::shared_ptr<GameObject>> thread_objects;
 
 class ServerWorker {

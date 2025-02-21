@@ -218,11 +218,9 @@ void HandleThreadObjects(struct us_timer_t * /*t*/) {
 
 void ServerWorker::StartServer(int port) {
     // Create an SSL app with required certificate and key file options.
-    uWS::SSLApp sslApp({
+    uWS::SSLApp sslApp = uWS::SSLApp({
         .key_file_name = "../private/key.pem",
-        .cert_file_name = "../private/cert.pem",
-        // Optionally add a passphrase if needed:
-        //.passphrase = "yourPassphrase"
+        .cert_file_name = "../private/cert.pem"
     })
     .ws<PointerToPlayer>("/*", {
         .open = [](auto *ws) {

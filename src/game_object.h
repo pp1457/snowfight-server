@@ -77,8 +77,8 @@ public:
     // Other member functions (implementation can be moved to a .cpp file if needed)
     bool Expired(long long current_time);
     bool Collide(std::shared_ptr<GameObject> obj);
-    void Hurt(uWS::WebSocket<false, true, PointerToPlayer>* ws, int damage);
-    virtual void SendMessageToClient(uWS::WebSocket<false, true, PointerToPlayer>* ws, std::string type);
+    void Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damage);
+    virtual void SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type);
 
 protected:
     std::string type_, id_;
