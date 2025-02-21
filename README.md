@@ -1,5 +1,49 @@
 ## How to install
-1. ```git clone --recurse-submodules git@github.com:pp1457/snowfight-server.git```
-2. ``` cd snowfight-server/src/uWebSockets ```
-3. ``` WITH_OPENSSL=1 make examples ``` (build uWebSocket with OPENSSL enable)
-4. ```cp uSockets/uSockets.a uSockets/libuSockets.a``` (let compiler be able to find uSockets library)
+1. Clone this repository 
+   ```bash
+   git clone --recurse-submodules git@github.com:pp1457/snowfight-server.git
+   ```
+2. Move into uWebSockets repo
+   ```bash
+   cd snowfight-server/src/uWebSockets
+   ```
+3. Build uWebSockets with OPENSSL enabled
+   ```bash
+   WITH_OPENSSL=1 make examples
+   ```
+4. Let compiler be able to find uSockets library
+   ```bash
+   cp uSockets/uSockets.a uSockets/libuSockets.a
+   ```
+5. Go back to root
+   ```bash
+   cd ../../
+   ```
+6. Compile the server
+   ```bash
+   make
+   ```
+7. Run the server
+   ```bash
+   ./server
+   ```
+
+### LTO Plugin Error Fix
+
+If you encounter errors like:
+```plugin needed to handle lto object```
+
+Follow these steps:
+
+1. Navigate to the uSockets directory:
+   ```bash
+   cd src/uWebSockets/uSockets
+   ```
+2. Rebuild uSockets with LTO disabled:
+   ```bash
+   make WITH_LTO=0
+   ```
+3. Rename the uSockets library to lib mode 
+   ```bash
+   cp uSockets.a libuSockets.a
+   ```
