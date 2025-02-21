@@ -1,2 +1,4 @@
 build/*
 server
+src/uWebSockets/*
+src/uWebSockets
