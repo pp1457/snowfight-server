@@ -15,15 +15,19 @@
    ```bash
    cp uSockets/uSockets.a uSockets/libuSockets.a
    ```
-5. Go back to root
+5. Let compiler be able to find uWebSockets header file
+   ```bash
+   mkdir src/uWebSockets; cp src/*.h uSockets/uWebSockets
+   ```
+6. Go back to root
    ```bash
    cd ../../
    ```
-6. Compile the server
+7. Compile the server
    ```bash
    make
    ```
-7. Run the server
+8. Run the server
    ```bash
    ./server
    ```
@@ -47,3 +51,4 @@ Follow these steps:
    ```bash
    cp uSockets.a libuSockets.a
    ```
+4. Back to root and compile again
