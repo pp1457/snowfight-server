@@ -17,7 +17,7 @@
    ```
 5. Let compiler be able to find uWebSockets header file
    ```bash
-   mkdir src/uWebSockets; cp src/*.h uSockets/uWebSockets
+   mkdir src/uWebSockets; cp src/*.h src/uWebSockets
    ```
 6. Go back to root
    ```bash
