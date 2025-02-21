@@ -13,7 +13,7 @@ thread_local std::unordered_map<std::string, std::shared_ptr<GameObject>> thread
 int main(int argc, char *argv[]) {
     int workers_num = 1;
     int grid_height = 1600, grid_width = 1600, grid_cell_size = 100;
-    int port = 23456;
+    int port = 12345;
 
     std::vector<std::shared_ptr<ServerWorker>> workers;
     grid = std::make_shared<Grid>(grid_height, grid_width, grid_cell_size);
