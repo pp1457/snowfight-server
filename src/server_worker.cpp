@@ -222,8 +222,8 @@ void HandleThreadObjects(struct us_timer_t * /*t*/) {
 void ServerWorker::StartServer(int port) {
     // Create an SSL app with required certificate and key file options.
     uWS::SSLApp sslApp = uWS::SSLApp({
-        .key_file_name = "../private/key.pem",
-        .cert_file_name = "../private/cert.pem"
+        .key_file_name = "private/key.pem",
+        .cert_file_name = "private/cert.pem"
     })
     .ws<PointerToPlayer>("/*", {
         .open = [](auto *ws) {
@@ -249,7 +249,7 @@ void ServerWorker::StartServer(int port) {
             std::cout << "Listening on port " << port << std::endl;
         } else {
             std::unique_lock<std::shared_mutex> lock(output_mtx);
-            std::cerr << "Failed to start the server" << std::endl;
+            std::cerr << "Failed to start the server" << std::strerror(errno) << std::endl;
         }
     });
 
