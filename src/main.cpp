@@ -11,7 +11,7 @@ thread_local std::unordered_set<uWS::WebSocket<true, true, PointerToPlayer>*> th
 thread_local std::unordered_map<std::string, std::shared_ptr<GameObject>> thread_objects;
 
 int main(int argc, char *argv[]) {
-    int workers_num = 1;
+    int workers_num = 4;
     int grid_height = 1600, grid_width = 1600, grid_cell_size = 100;
     int port = 12345;
 
