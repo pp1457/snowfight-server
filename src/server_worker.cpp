@@ -36,6 +36,10 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
         y = message["position"]["y"].get<double>();
     }
 
+    if (x < 0 || y < 0 || x > grid->get_width() || y > grid->get_height()) {
+        return;
+    }
+
     player_ptr->set_health(health);
     player_ptr->set_x(x);
     player_ptr->set_y(y);

@@ -39,6 +39,10 @@ public:
 
     ~Grid();
 
+    int get_height() { return height_; }
+    int get_width() { return width_; }
+    int get_cell_size() { return width_; }
+
     void Insert(std::shared_ptr<GameObject> obj);
     void Remove(std::shared_ptr<GameObject> obj);
     void Update(std::shared_ptr<GameObject> obj, long long current_time);
