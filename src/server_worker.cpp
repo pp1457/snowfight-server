@@ -23,6 +23,7 @@ void ServerWorker::handlePing(auto *ws, const json &message, uWS::OpCode opCode)
 void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_ptr<Player> player_ptr) {
     // Set the player's ID and attributes using default values if keys are missing.
     player_ptr->set_id(message.value("id", "unknown"));
+    player_ptr->set_username(message.value("username", "unknown"));
 
     double x = 0.0, y = 0.0;
     int health = message.value("health", 100);
@@ -45,8 +46,8 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
     player_ptr->set_x(x);
     player_ptr->set_y(y);
     player_ptr->set_size(size);
-    player_ptr->set_life_length((long long)(8e18));
     player_ptr->set_time_update(time_update);
+    player_ptr->set_life_length((long long)(4e18));
 
     // Insert the player into the grid.
     grid->Insert(player_ptr);
@@ -72,7 +73,9 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
         player_ptr->set_x(new_x);
         player_ptr->set_y(new_y);
         player_ptr->set_time_update(time_update);
+
         grid->Update(player_ptr, 0);
+
     } else if (message["objectType"] == "snowball") {
         // Handle snowball movement.
         std::string snowball_id = message.value("id", "unknown");
@@ -83,8 +86,7 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
             snowball_ptr = std::make_shared<Snowball>(snowball_id, "snowball");
             thread_objects[snowball_id] = snowball_ptr;
             is_new = true;
-        }
-        else {
+        } else {
             snowball_ptr = std::static_pointer_cast<Snowball>(thread_objects[snowball_id]);
         }
 
@@ -186,10 +188,10 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
      
     for (auto obj : neighbors) {
         if (obj->get_id() != player_ptr->get_id()) {
-            if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() &&
-                obj->Collide(player_ptr)) {
+            if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
                 player_ptr->Hurt(ws, obj->get_damage());
             } else {
+
                 obj->SendMessageToClient(ws, "movement");
             }
         }

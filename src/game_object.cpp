@@ -35,7 +35,7 @@ void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damag
     set_health(std::max(get_health() - damage, 0));
     if (get_health() == 0) { 
         set_is_dead(true); 
-        set_life_length(3000);
+        set_life_length(1000);
     }
     SendMessageToClient(ws, "hit");
 }
@@ -43,13 +43,13 @@ void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damag
 // Sends a message to the client with the object's current state.
 void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type) {
     auto now = std::chrono::system_clock::now();
-    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()).count();
+    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
     
     json data = {
         {"id", get_id()},
         {"messageType", type},
         {"objectType", get_type()},
+        {"username", get_username()},
         {"position", {{"x", get_cur_x(current_time)}, {"y", get_cur_y(current_time)}}},
         {"velocity", {{"x", get_vx()}, {"y", get_vy()}}},
         {"size", get_size()},

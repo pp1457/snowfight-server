@@ -20,14 +20,14 @@ class GameObject {
 public:
     // Constructors and destructor
     GameObject()
-        : type_("unknown"), id_("unknown"),
+        : type_("unknown"), id_("unknown"), username_("unknown"),
           x_(0), y_(0), vx_(0), vy_(0), size_(1),
           row_(0), col_(0), health_(100), damage_(0),
           time_update_(0), life_length_(1000),
           is_dead_(false) {}
 
     GameObject(std::string id, std::string type)
-        : type_(std::move(type)), id_(std::move(id)),
+        : type_(std::move(type)), id_(std::move(id)), username_("unknown"),
           x_(0), y_(0), vx_(0), vy_(0), size_(1),
           row_(0), col_(0), health_(100), damage_(0),
           time_update_(0), life_length_(1000),
@@ -38,6 +38,7 @@ public:
     // Inline Getters
     inline std::string get_type() const { return type_; }
     inline std::string get_id() const { return id_; }
+    inline std::string get_username() const { return username_; }
     inline double get_x() const { return x_; }
     inline double get_y() const { return y_; }
     inline double get_vx() const { return vx_; }
@@ -58,6 +59,7 @@ public:
     // Inline Setters
     inline void set_type(std::string type) { type_ = std::move(type); }
     inline void set_id(std::string id) { id_ = std::move(id); }
+    inline void set_username(std::string username) { username_ = std::move(username); }
     inline void set_x(double x) { x_ = x; }
     inline void set_y(double y) { y_ = y; }
     inline void set_vx(double vx) { vx_ = vx; }
@@ -81,7 +83,7 @@ public:
     virtual void SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type);
 
 protected:
-    std::string type_, id_;
+    std::string type_, id_, username_;
     double x_, y_, vx_, vy_, size_;
     int row_, col_, health_, damage_;
     long long time_update_, life_length_;
