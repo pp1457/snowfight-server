@@ -49,8 +49,6 @@ void Grid::Update(std::shared_ptr<GameObject> obj) {
     if ((old_row != new_row) || (old_col != new_col)) {
         Remove(obj);
         obj->set_row(new_row); obj->set_col(new_col);
-        obj->set_life_length(obj->get_life_length() - (current_time - obj->get_time_update()));
-        obj->set_time_update(current_time);
         Insert(obj);
     }
 }

@@ -45,7 +45,7 @@ public:
 
     void Insert(std::shared_ptr<GameObject> obj);
     void Remove(std::shared_ptr<GameObject> obj);
-    void Update(std::shared_ptr<GameObject> obj, long long current_time);
+    void Update(std::shared_ptr<GameObject> obj);
 
     std::vector<std::shared_ptr<GameObject>> Search(double lower_y, double upper_y, double left_x, double right_x);
 };

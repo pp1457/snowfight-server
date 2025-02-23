@@ -1,6 +1,4 @@
 #include "game_object.h"
-#include <algorithm>
-#include <chrono>
 
 // Returns true if the object has expired based on its life length.
 bool GameObject::Expired(long long current_time) {
@@ -8,16 +6,36 @@ bool GameObject::Expired(long long current_time) {
     return (elapsed_time > get_life_length());
 }
 
-bool GameObject::WillCollide(double x, double y, double size) {
-    auto now = std::chrono::system_clock::now();
-    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+bool GameObject::Closer(std::shared_ptr<GameObject> obj) {
+    if (get_is_dead()) {
+        return false;
+    }
 
-    double x_diff = x - get_cur_x(current_time);
-    double y_diff = y - get_cur_y(current_time);
+    double x_diff = obj->get_x() - get_x();
+    double y_diff = obj->get_y() - get_y();
+
+    if (obj->get_vx() != 0.0 && std::signbit(x_diff * obj->get_vx())) {
+        return false;
+    }
+    if (obj->get_vy() != 0.0 && std::signbit(y_diff * obj->get_vy())) {
+        return false;
+    }
+
+    return true;
+}
+
+bool GameObject::Touch(std::shared_ptr<GameObject> obj) {
+    if (get_is_dead()) {
+        return false;
+    }
+
+    double x_diff = obj->get_x() - get_x();
+    double y_diff = obj->get_y() - get_y();
     double distance_square = x_diff * x_diff + y_diff * y_diff;
-    double size_sum = size + get_size();
+    double size_sum = obj->get_size() + get_size();
 
-    if (distance_square < (size_sum * size_sum)) {
+    if (distance_square <= (size_sum * size_sum)) {
+        set_is_dead(true);
         return true;
     }
 
@@ -26,22 +44,22 @@ bool GameObject::WillCollide(double x, double y, double size) {
 
 // Checks for a collision with another GameObject.
 // If a collision occurs, marks the object as dead and returns true.
-bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
-    if (get_is_dead())
-        return false;
+bool GameObject::Collide(std::shared_ptr<GameObject> obj, long long current_time) {
 
-    auto now = std::chrono::system_clock::now();
-    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-    
-    double x_diff = obj->get_cur_x(current_time) - get_cur_x(current_time);
-    double y_diff = obj->get_cur_y(current_time) - get_cur_y(current_time);
+    if (get_is_dead()) {
+        return false;
+    }
+
+    double x_diff = obj->get_x() - get_cur_x(current_time);
+    double y_diff = obj->get_y() - get_cur_y(current_time);
     double distance_square = x_diff * x_diff + y_diff * y_diff;
     double size_sum = obj->get_size() + get_size();
 
-    if (distance_square < (size_sum * size_sum)) {
+    if (distance_square <= (size_sum * size_sum)) {
         set_is_dead(true);
         return true;
     }
+
     return false;
 }
 
