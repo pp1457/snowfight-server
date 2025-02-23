@@ -27,6 +27,7 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
     double x = 0.0, y = 0.0;
     int health = message.value("health", 100);
     double size = message.value("size", 20.0);
+    long long time_update = message.value("timeUpdate", 0LL);
 
     // Extract position if provided.
     if (message.contains("position") &&
@@ -44,6 +45,8 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
     player_ptr->set_x(x);
     player_ptr->set_y(y);
     player_ptr->set_size(size);
+    player_ptr->set_life_length((long long)(8e18));
+    player_ptr->set_time_update(time_update);
 
     // Insert the player into the grid.
     grid->Insert(player_ptr);
@@ -54,6 +57,8 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
     if (!message.contains("objectType")) return;
     if (message["objectType"] == "player") {
         // Handle player movement.
+        long long time_update = message.value("timeUpdate", 0LL);
+        
         double new_x = player_ptr->get_x();
         double new_y = player_ptr->get_y();
 
@@ -66,6 +71,7 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
 
         player_ptr->set_x(new_x);
         player_ptr->set_y(new_y);
+        player_ptr->set_time_update(time_update);
         grid->Update(player_ptr, 0);
     } else if (message["objectType"] == "snowball") {
         // Handle snowball movement.
@@ -86,9 +92,9 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
 
         double x = 0.0, y = 0.0, vx = 0.0, vy = 0.0;
         double size = message.value("size", 1.0);
-        long long time_update = message.value("timeEmission", 0LL);
+        long long time_update = message.value("timeUpdate", 0LL);
         long long life_length = message.value("lifeLength", static_cast<long long>(4e18));
-        int damage = message.value("damage", 5);
+        int damage = message.value("damage", 0);
         bool charging = message.value("charging", false);
 
         if (message.contains("position") &&
@@ -192,14 +198,20 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
 
 void HandleThreadClients(struct us_timer_t * /*t*/) {
     auto clients_copy = thread_clients;
+    auto now = std::chrono::system_clock::now();
+    auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+
     for (auto *ws : clients_copy) {
         auto player_ptr = ws->getUserData()->player;
         if (player_ptr->get_is_dead()) {
-            grid->Remove(player_ptr);
             thread_clients.erase(ws);
             return;
         }
-        UpdatePlayerView(ws, player_ptr);
+        if (player_ptr->Expired(current_time)) {
+            grid->Remove(player_ptr);
+        } else {
+            UpdatePlayerView(ws, player_ptr);
+        }
     }
 }
 void HandleThreadObjects(struct us_timer_t * /*t*/) {
@@ -208,8 +220,7 @@ void HandleThreadObjects(struct us_timer_t * /*t*/) {
     for (auto &[id, obj] : objects_copy) {
         if (obj) { 
             auto now = std::chrono::system_clock::now();
-            auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()).count();
+            auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
                 
             if (obj->get_is_dead()) {
                 thread_objects.erase(id);
