@@ -8,6 +8,22 @@ bool GameObject::Expired(long long current_time) {
     return (elapsed_time > get_life_length());
 }
 
+bool GameObject::WillCollide(double x, double y, double size) {
+    auto now = std::chrono::system_clock::now();
+    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+
+    double x_diff = x - get_cur_x(current_time);
+    double y_diff = y - get_cur_y(current_time);
+    double distance_square = x_diff * x_diff + y_diff * y_diff;
+    double size_sum = size + get_size();
+
+    if (distance_square < (size_sum * size_sum)) {
+        return true;
+    }
+
+    return false;
+}
+
 // Checks for a collision with another GameObject.
 // If a collision occurs, marks the object as dead and returns true.
 bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
@@ -15,8 +31,7 @@ bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
         return false;
 
     auto now = std::chrono::system_clock::now();
-    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()).count();
+    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
     
     double x_diff = obj->get_cur_x(current_time) - get_cur_x(current_time);
     double y_diff = obj->get_cur_y(current_time) - get_cur_y(current_time);

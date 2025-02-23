@@ -36,11 +36,11 @@ void Grid::Remove(std::shared_ptr<GameObject> obj) {
     cells_[row][col]->Remove(obj);
 }
 
-void Grid::Update(std::shared_ptr<GameObject> obj, long long current_time) {
+void Grid::Update(std::shared_ptr<GameObject> obj) {
     int old_row = obj->get_row();
     int old_col = obj->get_col();
-    int cur_y = static_cast<int>(obj->get_cur_y(current_time));
-    int cur_x = static_cast<int>(obj->get_cur_x(current_time));
+    int cur_y = static_cast<int>(obj->get_x());
+    int cur_x = static_cast<int>(obj->get_y());
     int new_row = cur_y / cell_size_;
     int new_col = cur_x / cell_size_;
 
@@ -49,7 +49,6 @@ void Grid::Update(std::shared_ptr<GameObject> obj, long long current_time) {
     if ((old_row != new_row) || (old_col != new_col)) {
         Remove(obj);
         obj->set_row(new_row); obj->set_col(new_col);
-        obj->set_x(cur_x); obj->set_y(cur_y);
         obj->set_life_length(obj->get_life_length() - (current_time - obj->get_time_update()));
         obj->set_time_update(current_time);
         Insert(obj);

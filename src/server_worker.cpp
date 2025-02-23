@@ -54,19 +54,38 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
     if (!message.contains("objectType")) return;
     if (message["objectType"] == "player") {
         // Handle player movement.
-        double new_x = player_ptr->get_x();
-        double new_y = player_ptr->get_y();
+        
+        double vx = 0, vy = 0;
 
-        if (message.contains("position") &&
-            message["position"].contains("x") &&
-            message["position"].contains("y")) {
-            new_x = message["position"]["x"].get<double>();
-            new_y = message["position"]["y"].get<double>();
+        if (message.contains("direction")) {
+            bool x_change = false, y_change = false;
+            if (message["direction"]["left"].get<bool>()) {
+                vx -= 1; x_change |= 1;
+            }
+            if (message["direction"]["right"].get<bool>()) {
+                vx += 1; x_change |= 1;
+            }
+            if (message["direction"]["up"].get<bool>()) {
+                vy -= 1; y_change |= 1;
+            }
+            if (message["direction"]["down"].get<bool>()) {
+                vy += 1; y_change |= 1;
+            }
+
+            vx *= constants::PLAYER_SPEED;
+            vy *= constants::PLAYER_SPEED;
+
+            if (x_change && y_change) {
+                vx /= constants::SQRT_2;
+                vy /= constants::SQRT_2;
+            }
         }
 
-        player_ptr->set_x(new_x);
-        player_ptr->set_y(new_y);
+        player_ptr->set_vx(vx);
+        player_ptr->set_vy(vy);
+
         grid->Update(player_ptr, 0);
+
     } else if (message["objectType"] == "snowball") {
         // Handle snowball movement.
         std::string snowball_id = message.value("id", "unknown");
