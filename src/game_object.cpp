@@ -56,6 +56,7 @@ void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>
         {"charging", get_charging()},
         {"expireDate", current_time + get_life_length()},
         {"isDead", get_is_dead()},
+        {"timeUpdate", get_time_update()},
         {"newHealth", get_health()}
     };
 
