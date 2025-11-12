@@ -29,8 +29,11 @@
    ```
 8. Run the server
    ```bash
-   ./server
+   ./server [port]
    ```
+   - Run with default port (12345): `./server`
+   - Run with custom port: `./server 8080`
+   - Port must be between 1 and 65535
 
 ### LTO Plugin Error Fix
 

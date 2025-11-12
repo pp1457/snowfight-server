@@ -14,7 +14,23 @@ thread_local std::unordered_map<std::string, std::shared_ptr<GameObject>> thread
 int main(int argc, char *argv[]) {
     int workers_num = 4;
     int grid_height = 1600, grid_width = 1600, grid_cell_size = 100;
-    int port = 12345;
+    int port = 12345;  // default port
+
+    // Parse command line arguments for port
+    if (argc > 1) {
+        try {
+            port = std::stoi(argv[1]);
+            if (port < 1 || port > 65535) {
+                std::cerr << "Error: Port must be between 1 and 65535" << std::endl;
+                return 1;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Invalid port number '" << argv[1] << "'" << std::endl;
+            return 1;
+        }
+    }
+
+    std::cout << "Starting server on port " << port << " with " << workers_num << " workers" << std::endl;
 
     std::vector<std::shared_ptr<ServerWorker>> workers;
     grid = std::make_shared<Grid>(grid_height, grid_width, grid_cell_size);
