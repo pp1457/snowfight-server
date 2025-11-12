@@ -50,8 +50,16 @@ public:
         
         // Create sorted vector by total time
         std::vector<std::pair<std::string, Stats>> sorted_stats;
+        long long total_lock_wait_time = 0;
+        long long total_lock_calls = 0;
+        
         for (const auto& [name, stat] : stats_) {
             sorted_stats.push_back({name, stat});
+            // Accumulate lock wait statistics
+            if (name.substr(0, 10) == "LOCK_WAIT:") {
+                total_lock_wait_time += stat.total_time_us;
+                total_lock_calls += stat.call_count;
+            }
         }
         std::sort(sorted_stats.begin(), sorted_stats.end(),
                   [](const auto& a, const auto& b) {
@@ -75,6 +83,22 @@ public:
                       << stat.avg_time_us()
                       << std::setw(12) << stat.min_time_us
                       << std::setw(12) << stat.max_time_us << "\n";
+        }
+        
+        std::cout << "\n" << std::string(80, '=') << "\n";
+        
+        // Print lock contention summary
+        if (total_lock_calls > 0) {
+            std::cout << "\n=== LOCK CONTENTION SUMMARY ===\n";
+            std::cout << "Total Lock Operations: " << total_lock_calls << "\n";
+            std::cout << "Total Time Waiting for Locks: " 
+                      << std::fixed << std::setprecision(2) 
+                      << (total_lock_wait_time / 1000.0) << " ms\n";
+            std::cout << "Average Lock Wait Time: " 
+                      << std::fixed << std::setprecision(2)
+                      << (static_cast<double>(total_lock_wait_time) / total_lock_calls) 
+                      << " μs\n";
+            std::cout << "===============================\n";
         }
         
         std::cout << "\n" << std::string(80, '=') << "\n\n";
@@ -110,6 +134,23 @@ private:
 // Macro for easy profiling
 #define PROFILE_SCOPE(name) ScopedTimer _timer_##__LINE__(name)
 #define PROFILE_FUNCTION() ScopedTimer _timer_##__LINE__(__FUNCTION__)
+
+// RAII timer for lock contention measurement
+class LockTimer {
+public:
+    explicit LockTimer(const std::string& lock_name) 
+        : name_(lock_name), start_(std::chrono::high_resolution_clock::now()) {}
+    
+    ~LockTimer() {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start_).count();
+        Profiler::instance().record("LOCK_WAIT:" + name_, duration);
+    }
+    
+private:
+    std::string name_;
+    std::chrono::high_resolution_clock::time_point start_;
+};
 
 // Memory and system statistics
 class SystemMonitor {

@@ -7,6 +7,7 @@
 #include <shared_mutex>
 
 #include "game_object.h"
+#include "profiler.h"
 
 struct Cell {
     std::unordered_set<std::shared_ptr<GameObject>> objects;
@@ -16,11 +17,13 @@ struct Cell {
     Cell() : mtx(std::make_unique<std::shared_mutex>()) {}
 
     void Insert(std::shared_ptr<GameObject> obj) {
+        LockTimer timer("Cell::Insert");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.insert(obj);
     }
 
     void Remove(std::shared_ptr<GameObject> obj) {
+        LockTimer timer("Cell::Remove");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.erase(obj);
     }

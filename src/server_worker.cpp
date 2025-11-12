@@ -200,26 +200,42 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
     long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();
     
-    json batch = {
-        {"messageType", "batch_update"},
-        {"timestamp", current_time},
-        {"updates", json::array()}
-    };
-     
-    for (auto obj : neighbors) {
-        if (obj->get_id() != player_ptr->get_id()) {
-            if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
-                player_ptr->Hurt(ws, obj->get_damage());
-            } else {
-                // Add object data to batch (reuses ToJson method)
-                batch["updates"].push_back(obj->ToJson(current_time, "movement"));
+    json batch;
+    {
+        PROFILE_SCOPE("UpdatePlayerView_JSONInit");
+        batch = {
+            {"messageType", "batch_update"},
+            {"timestamp", current_time},
+            {"updates", json::array()}
+        };
+    }
+    
+    {
+        PROFILE_SCOPE("UpdatePlayerView_BuildJSON");
+        for (auto obj : neighbors) {
+            if (obj->get_id() != player_ptr->get_id()) {
+                if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
+                    player_ptr->Hurt(ws, obj->get_damage());
+                } else {
+                    // Add object data to batch (reuses ToJson method)
+                    batch["updates"].push_back(obj->ToJson(current_time, "movement"));
+                }
             }
         }
     }
     
     // Send ONE message with all updates
     if (!batch["updates"].empty()) {
-        ws->send(batch.dump(), uWS::OpCode::TEXT);
+        std::string serialized;
+        {
+            PROFILE_SCOPE("UpdatePlayerView_JSONDump");
+            serialized = batch.dump();
+        }
+        
+        {
+            PROFILE_SCOPE("UpdatePlayerView_WebSocketSend");
+            ws->send(serialized, uWS::OpCode::TEXT);
+        }
         SystemMonitor::instance().increment_msg_sent();
     }
 }
@@ -246,6 +262,9 @@ void HandleThreadClients(struct us_timer_t * /*t*/) {
 void HandleThreadObjects(struct us_timer_t * /*t*/) {
     PROFILE_SCOPE("HandleThreadObjects");
     auto objects_copy = thread_objects;
+    
+    // Update total objects count
+    SystemMonitor::instance().set_total_objects(thread_objects.size());
     
     for (auto &[id, obj] : objects_copy) {
         if (obj) { 
@@ -275,6 +294,7 @@ void ServerWorker::StartServer(int port) {
             ws->getUserData()->player = std::make_shared<Player>();
             ws->getUserData()->player->set_type("player");
             thread_clients.insert(ws);
+            SystemMonitor::instance().increment_connections();
             std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cout << "Client connected!" << std::endl;
         },
@@ -284,6 +304,7 @@ void ServerWorker::StartServer(int port) {
         .close = [](auto *ws, int /*code*/, std::string_view /*message*/) {
             grid->Remove(ws->getUserData()->player);
             thread_clients.erase(ws);
+            SystemMonitor::instance().decrement_connections();
             std::unique_lock<std::shared_mutex> lock(output_mtx);
             std::cout << "Client disconnected!" << std::endl;
         }
@@ -300,11 +321,11 @@ void ServerWorker::StartServer(int port) {
 
     struct us_loop_t *loop = (struct us_loop_t *) uWS::Loop::get();
     struct us_timer_t *playerTimer = us_create_timer(loop, 0, 0);
-    us_timer_set(playerTimer, HandleThreadClients, 20, 10);
+    us_timer_set(playerTimer, HandleThreadClients, 20, 30);  // Changed from 10ms to 30ms (33Hz update rate)
 
     // Timer for snowball position updates (every 250ms)
     struct us_timer_t *objectTimer = us_create_timer(loop, 0, 0);
-    us_timer_set(objectTimer, HandleThreadObjects, 250, 10);
+    us_timer_set(objectTimer, HandleThreadObjects, 250, 30);  // Also adjusted for consistency
 
     sslApp.run();
 }

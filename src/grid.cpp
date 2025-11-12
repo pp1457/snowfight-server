@@ -82,6 +82,9 @@ std::vector<std::shared_ptr<GameObject>> Grid::Search(double lower_y, double upp
     for (int r = lower_row; r <= upper_row; r++) {
         for (int c = left_col; c <= right_col; c++) {
             if (r >= rows_ || c >= cols_ || r < 0 || c < 0) continue;  // Boundary check
+            
+            // Measure lock acquisition time
+            LockTimer timer("Grid::Search_CellLock");
             std::shared_lock<std::shared_mutex> lock(*(cells_[r][c]->mtx));
             auto& cell_objs = cells_[r][c]->objects;
             all.insert(all.end(), cell_objs.begin(), cell_objs.end());
