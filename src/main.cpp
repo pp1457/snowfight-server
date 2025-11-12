@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "server_worker.h"
+#include "profiler.h"
 
 std::shared_mutex output_mtx;
 std::shared_ptr<Grid> grid;
@@ -23,8 +24,20 @@ int main(int argc, char *argv[]) {
         workers[i]->Start(port);
     }
 
+    // Profiling report loop
+    int report_interval = 0;
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        report_interval++;
+        
+        // Print profiling report every 60 seconds
+        if (report_interval % 6 == 0) {
+            std::unique_lock<std::shared_mutex> lock(output_mtx);
+            std::cout << "\n";
+            Profiler::instance().print_report();
+            SystemMonitor::instance().print_stats();
+            Profiler::instance().reset();
+        }
     }
 
     return 0;

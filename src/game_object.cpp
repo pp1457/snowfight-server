@@ -1,4 +1,5 @@
 #include "game_object.h"
+#include "profiler.h"
 #include <algorithm>
 #include <chrono>
 
@@ -42,6 +43,8 @@ void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damag
 
 // Sends a message to the client with the object's current state.
 void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type) {
+    PROFILE_FUNCTION();
+    
     auto now = std::chrono::system_clock::now();
     long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
     

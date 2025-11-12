@@ -1,4 +1,5 @@
 #include "server_worker.h"
+#include "profiler.h"
 
 using json = nlohmann::json;
 
@@ -6,6 +7,7 @@ ServerWorker::ServerWorker() {}
 
 // Sends a pong response for a "ping" message.
 void ServerWorker::handlePing(auto *ws, const json &message, uWS::OpCode opCode) {
+    PROFILE_SCOPE("handlePing");
     long long clientTime = message.value("clientTime", 0LL);
     auto now = std::chrono::system_clock::now();
     auto serverTime = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -21,6 +23,7 @@ void ServerWorker::handlePing(auto *ws, const json &message, uWS::OpCode opCode)
 
 // Processes a "join" message.
 void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_ptr<Player> player_ptr) {
+    PROFILE_SCOPE("handleJoin");
     // Set the player's ID and attributes using default values if keys are missing.
     player_ptr->set_id(message.value("id", "unknown"));
     player_ptr->set_username(message.value("username", "unknown"));
@@ -55,6 +58,7 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
 
 // Processes a "movement" message.
 void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::shared_ptr<Player> player_ptr) {
+    PROFILE_SCOPE("handleMovement");
     if (!message.contains("objectType")) return;
     if (message["objectType"] == "player") {
         // Handle player movement.
@@ -132,13 +136,17 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::share
 // Refactored HandleMessage implementation
 //------------------------------------------------------------------------------
 void ServerWorker::HandleMessage(auto *ws, std::string_view str_message, uWS::OpCode opCode) {
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_msg_processed();
+    
     json message = json::parse(str_message);
     std::string type = message.value("type", "");
 
-    { 
-        std::unique_lock<std::shared_mutex> lock(output_mtx);
-        std::cout << message.dump(4) << std::endl;
-    }
+    // Debug output disabled for performance
+    // { 
+    //     std::unique_lock<std::shared_mutex> lock(output_mtx);
+    //     std::cout << message.dump(4) << std::endl;
+    // }
 
     // Handle ping separately.
     if (type == "ping") {
@@ -178,6 +186,7 @@ std::string ExtractPlayerId(const std::string& snowballId) {
 }
 
 void UpdatePlayerView(auto *ws, auto player_ptr) {
+    PROFILE_SCOPE("UpdatePlayerView");
 
     double lower_y = player_ptr->get_y() - (constants::FIXED_VIEW_HEIGHT);
     double upper_y = lower_y + 2 * constants::FIXED_VIEW_HEIGHT;
@@ -191,7 +200,7 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
             if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
                 player_ptr->Hurt(ws, obj->get_damage());
             } else {
-
+                SystemMonitor::instance().increment_msg_sent();
                 obj->SendMessageToClient(ws, "movement");
             }
         }
@@ -199,6 +208,7 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
 }
 
 void HandleThreadClients(struct us_timer_t * /*t*/) {
+    PROFILE_SCOPE("HandleThreadClients");
     auto clients_copy = thread_clients;
     auto now = std::chrono::system_clock::now();
     auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -217,6 +227,7 @@ void HandleThreadClients(struct us_timer_t * /*t*/) {
     }
 }
 void HandleThreadObjects(struct us_timer_t * /*t*/) {
+    PROFILE_SCOPE("HandleThreadObjects");
     auto objects_copy = thread_objects;
     
     for (auto &[id, obj] : objects_copy) {

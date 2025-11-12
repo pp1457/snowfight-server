@@ -1,4 +1,5 @@
 #include "grid.h"
+#include "profiler.h"
 
 
 Grid::Grid(int height, int width, int cell_size)
@@ -15,6 +16,9 @@ Grid::Grid(int height, int width, int cell_size)
 Grid::~Grid() {}
 
 void Grid::Insert(std::shared_ptr<GameObject> obj) {
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_grid_ops();
+    
     int row = static_cast<int>(obj->get_y()) / cell_size_;
     int col = static_cast<int>(obj->get_x()) / cell_size_;
 
@@ -28,6 +32,9 @@ void Grid::Insert(std::shared_ptr<GameObject> obj) {
 
 
 void Grid::Remove(std::shared_ptr<GameObject> obj) {
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_grid_ops();
+    
     int row = obj->get_row();
     int col = obj->get_col();
 
@@ -37,6 +44,9 @@ void Grid::Remove(std::shared_ptr<GameObject> obj) {
 }
 
 void Grid::Update(std::shared_ptr<GameObject> obj, long long current_time) {
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_grid_ops();
+    
     int old_row = obj->get_row();
     int old_col = obj->get_col();
     int cur_y = static_cast<int>(obj->get_cur_y(current_time));
@@ -59,6 +69,9 @@ void Grid::Update(std::shared_ptr<GameObject> obj, long long current_time) {
 
 std::vector<std::shared_ptr<GameObject>> Grid::Search(double lower_y, double upper_y, 
                                                       double left_x, double right_x) { 
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_grid_ops();
+    
     int lower_row = static_cast<int>(lower_y) / cell_size_;
     int upper_row = static_cast<int>(upper_y) / cell_size_;
     int left_col = static_cast<int>(left_x) / cell_size_;
