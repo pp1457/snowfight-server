@@ -11,7 +11,7 @@ bool GameObject::Expired(long long current_time) {
 
 // Checks for a collision with another GameObject.
 // If a collision occurs, marks the object as dead and returns true.
-bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
+bool GameObject::Collide(const std::shared_ptr<GameObject>& obj) {
     if (get_is_dead())
         return false;
 
@@ -26,6 +26,9 @@ bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
 
     if (distance_square < (size_sum * size_sum)) {
         set_is_dead(true);
+        // Update time to start the death grace period
+        set_time_update(current_time);
+        set_life_length(1000); // 1 second grace period for clients to see death
         return true;
     }
     return false;
@@ -35,8 +38,12 @@ bool GameObject::Collide(std::shared_ptr<GameObject> obj) {
 void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damage) {
     set_health(std::max(get_health() - damage, 0));
     if (get_health() == 0) { 
-        set_is_dead(true); 
-        set_life_length(1000);
+        set_is_dead(true);
+        // Update time to start the death grace period
+        auto now = std::chrono::system_clock::now();
+        set_time_update(std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count());
+        set_life_length(1000); // 1 second grace period for clients to see death
     }
     SendMessageToClient(ws, "hit");
 }
@@ -57,6 +64,49 @@ json GameObject::ToJson(long long current_time, std::string messageType) {
         {"timeUpdate", get_time_update()},
         {"newHealth", get_health()}
     };
+}
+
+// Builds a MessagePack binary representation of the game object's current state
+void GameObject::ToMsgPack(msgpack::packer<msgpack::sbuffer>& pk, long long current_time) const {
+    // Pack as map with 11 fields
+    pk.pack_map(11);
+    
+    pk.pack("id");
+    pk.pack(get_id());
+    
+    pk.pack("objectType");
+    pk.pack(get_type());
+    
+    pk.pack("username");
+    pk.pack(get_username());
+    
+    pk.pack("position");
+    pk.pack_map(2);
+    pk.pack("x"); pk.pack(get_cur_x(current_time));
+    pk.pack("y"); pk.pack(get_cur_y(current_time));
+    
+    pk.pack("velocity");
+    pk.pack_map(2);
+    pk.pack("x"); pk.pack(get_vx());
+    pk.pack("y"); pk.pack(get_vy());
+    
+    pk.pack("size");
+    pk.pack(get_size());
+    
+    pk.pack("charging");
+    pk.pack(get_charging());
+    
+    pk.pack("expireDate");
+    pk.pack(current_time + get_life_length());
+    
+    pk.pack("isDead");
+    pk.pack(get_is_dead());
+    
+    pk.pack("timeUpdate");
+    pk.pack(get_time_update());
+    
+    pk.pack("newHealth");
+    pk.pack(get_health());
 }
 
 // Sends a message to the client with the object's current state.

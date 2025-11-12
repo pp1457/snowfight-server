@@ -16,13 +16,13 @@ struct Cell {
     // Constructor to initialize the mutex pointer.
     Cell() : mtx(std::make_unique<std::shared_mutex>()) {}
 
-    void Insert(std::shared_ptr<GameObject> obj) {
+    void Insert(const std::shared_ptr<GameObject>& obj) {
         LockTimer timer("Cell::Insert");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.insert(obj);
     }
 
-    void Remove(std::shared_ptr<GameObject> obj) {
+    void Remove(const std::shared_ptr<GameObject>& obj) {
         LockTimer timer("Cell::Remove");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.erase(obj);
@@ -42,15 +42,15 @@ public:
 
     ~Grid();
 
-    int get_height() { return height_; }
-    int get_width() { return width_; }
-    int get_cell_size() { return width_; }
+    [[nodiscard]] int get_height() const { return height_; }
+    [[nodiscard]] int get_width() const { return width_; }
+    [[nodiscard]] int get_cell_size() const { return cell_size_; } // Fixed: was returning width_
 
-    void Insert(std::shared_ptr<GameObject> obj);
-    void Remove(std::shared_ptr<GameObject> obj);
-    void Update(std::shared_ptr<GameObject> obj, long long current_time);
+    void Insert(const std::shared_ptr<GameObject>& obj);
+    void Remove(const std::shared_ptr<GameObject>& obj);
+    void Update(const std::shared_ptr<GameObject>& obj, long long current_time);
 
-    std::vector<std::shared_ptr<GameObject>> Search(double lower_y, double upper_y, double left_x, double right_x);
+    [[nodiscard]] std::vector<std::shared_ptr<GameObject>> Search(double lower_y, double upper_y, double left_x, double right_x);
 };
 
 #endif

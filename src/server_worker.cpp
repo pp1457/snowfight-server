@@ -22,7 +22,7 @@ void ServerWorker::handlePing(auto *ws, const json &message, uWS::OpCode opCode)
 }
 
 // Processes a "join" message.
-void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_ptr<Player> player_ptr) {
+void ServerWorker::handleJoin(auto * /*ws*/, const json &message, const std::shared_ptr<Player>& player_ptr) {
     PROFILE_SCOPE("handleJoin");
     // Set the player's ID and attributes using default values if keys are missing.
     player_ptr->set_id(message.value("id", "unknown"));
@@ -57,7 +57,7 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, std::shared_pt
 }
 
 // Processes a "movement" message.
-void ServerWorker::handleMovement(auto * /*ws*/, const json &message, std::shared_ptr<Player> player_ptr) {
+void ServerWorker::handleMovement(auto * /*ws*/, const json &message, const std::shared_ptr<Player>& player_ptr) {
     PROFILE_SCOPE("handleMovement");
     if (!message.contains("objectType")) return;
     if (message["objectType"] == "player") {
@@ -139,20 +139,15 @@ void ServerWorker::HandleMessage(auto *ws, std::string_view str_message, uWS::Op
     PROFILE_FUNCTION();
     SystemMonitor::instance().increment_msg_processed();
     
-    json message = json::parse(str_message);
-    std::string type = message.value("type", "");
-
-    // Debug output disabled for performance
-    // { 
-    //     std::unique_lock<std::shared_mutex> lock(output_mtx);
-    //     std::cout << message.dump(4) << std::endl;
-    // }
-
-    // Handle ping separately.
-    if (type == "ping") {
+    // Fast path: check for ping without full JSON parse
+    if (str_message.find("\"ping\"") != std::string_view::npos) {
+        json message = json::parse(str_message);
         handlePing(ws, message, opCode);
         return;
     }
+    
+    json message = json::parse(str_message);
+    std::string type = message.value("type", "");
 
     // Retrieve the player's pointer from user data.
     auto player_ptr = ws->getUserData()->player;
@@ -193,49 +188,70 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
     double left_x = player_ptr->get_x() - (constants::FIXED_VIEW_WIDTH);
     double right_x = left_x + 2 * constants::FIXED_VIEW_WIDTH;
     
-    std::vector<std::shared_ptr<GameObject>> neighbors = grid->Search(lower_y, upper_y, left_x, right_x);
+    // Get neighbors - use auto to allow move semantics/RVO
+    auto neighbors = grid->Search(lower_y, upper_y, left_x, right_x);
     
-    // Build batch message with ALL updates
+    // Build batch message with MessagePack
     auto now = std::chrono::system_clock::now();
     long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();
     
-    json batch;
-    {
-        PROFILE_SCOPE("UpdatePlayerView_JSONInit");
-        batch = {
-            {"messageType", "batch_update"},
-            {"timestamp", current_time},
-            {"updates", json::array()}
-        };
-    }
+    // Use thread_local buffer to avoid repeated allocations
+    thread_local msgpack::sbuffer buffer;
+    buffer.clear(); // Reuse the buffer
+    msgpack::packer<msgpack::sbuffer> pk(&buffer);
     
     {
-        PROFILE_SCOPE("UpdatePlayerView_BuildJSON");
+        PROFILE_SCOPE("UpdatePlayerView_BuildMsgPack");
+        
+        // Pack batch message as map: {messageType: "batch_update", timestamp: xxx, updates: [...]}
+        pk.pack_map(3);
+        
+        pk.pack("messageType");
+        pk.pack("batch_update");
+        
+        pk.pack("timestamp");
+        pk.pack(current_time);
+        
+        pk.pack("updates");
+        
+        // First pass: collect valid objects and handle collisions
+        std::vector<std::shared_ptr<GameObject>> valid_objects;
+        valid_objects.reserve(neighbors.size()); // Reserve to avoid reallocation
         for (auto obj : neighbors) {
-            if (obj->get_id() != player_ptr->get_id()) {
-                if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
-                    player_ptr->Hurt(ws, obj->get_damage());
-                } else {
-                    // Add object data to batch (reuses ToJson method)
-                    batch["updates"].push_back(obj->ToJson(current_time, "movement"));
-                }
+            // Skip the player themselves
+            if (obj->get_id() == player_ptr->get_id()) {
+                continue;
+            }
+            
+            // Skip dead objects that expired (beyond grace period for death notification)
+            // Allow recently dead objects to be sent so clients can see death state
+            if (obj->get_is_dead() && obj->Expired(current_time)) {
+                continue;
+            }
+            
+            // Handle collision with damaging objects
+            if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
+                player_ptr->Hurt(ws, obj->get_damage());
+                // Don't send this object (it just collided)
+            } else {
+                valid_objects.push_back(obj);
             }
         }
+        
+        // Pack array of updates with correct count
+        pk.pack_array(valid_objects.size());
+        
+        // Second pass: pack all valid objects
+        for (auto obj : valid_objects) {
+            obj->ToMsgPack(pk, current_time);
+        }
     }
     
-    // Send ONE message with all updates
-    if (!batch["updates"].empty()) {
-        std::string serialized;
-        {
-            PROFILE_SCOPE("UpdatePlayerView_JSONDump");
-            serialized = batch.dump();
-        }
-        
-        {
-            PROFILE_SCOPE("UpdatePlayerView_WebSocketSend");
-            ws->send(serialized, uWS::OpCode::TEXT);
-        }
+    // Send binary message
+    if (buffer.size() > 0) {
+        PROFILE_SCOPE("UpdatePlayerView_WebSocketSend");
+        ws->send(std::string_view(buffer.data(), buffer.size()), uWS::OpCode::BINARY);
         SystemMonitor::instance().increment_msg_sent();
     }
 }
@@ -261,25 +277,39 @@ void HandleThreadClients(struct us_timer_t * /*t*/) {
 }
 void HandleThreadObjects(struct us_timer_t * /*t*/) {
     PROFILE_SCOPE("HandleThreadObjects");
-    auto objects_copy = thread_objects;
+    
+    // Get current time once, outside the loop
+    auto now = std::chrono::system_clock::now();
+    auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
     
     // Update total objects count
     SystemMonitor::instance().set_total_objects(thread_objects.size());
     
-    for (auto &[id, obj] : objects_copy) {
-        if (obj) { 
-            auto now = std::chrono::system_clock::now();
-            auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-                
-            if (obj->get_is_dead()) {
-                thread_objects.erase(id);
-            } else if (obj->Expired(current_time)) {
-                thread_objects.erase(id);
-                grid->Remove(obj);
-            } else {
-                grid->Update(obj, current_time);
-            }
+    // Collect objects to remove (avoid modifying map while iterating)
+    std::vector<std::string> to_remove;
+    to_remove.reserve(32); // Pre-allocate for typical cleanup size
+    
+    // Iterate through objects and collect those that need removal
+    for (auto &[id, obj] : thread_objects) {
+        if (!obj) {
+            to_remove.push_back(id);
+            continue;
         }
+        
+        if (obj->get_is_dead()) {
+            to_remove.push_back(id);
+            grid->Remove(obj);
+        } else if (obj->Expired(current_time)) {
+            to_remove.push_back(id);
+            grid->Remove(obj);
+        } else {
+            grid->Update(obj, current_time);
+        }
+    }
+    
+    // Remove dead/expired objects from map
+    for (const auto& id : to_remove) {
+        thread_objects.erase(id);
     }
 }
 
@@ -321,11 +351,11 @@ void ServerWorker::StartServer(int port) {
 
     struct us_loop_t *loop = (struct us_loop_t *) uWS::Loop::get();
     struct us_timer_t *playerTimer = us_create_timer(loop, 0, 0);
-    us_timer_set(playerTimer, HandleThreadClients, 20, 30);  // Changed from 10ms to 30ms (33Hz update rate)
+    us_timer_set(playerTimer, HandleThreadClients, 20, 10);  // 10ms (100Hz) - MessagePack optimization allows faster updates
 
     // Timer for snowball position updates (every 250ms)
     struct us_timer_t *objectTimer = us_create_timer(loop, 0, 0);
-    us_timer_set(objectTimer, HandleThreadObjects, 250, 30);  // Also adjusted for consistency
+    us_timer_set(objectTimer, HandleThreadObjects, 250, 30);  // Keep objects at 30ms
 
     sslApp.run();
 }

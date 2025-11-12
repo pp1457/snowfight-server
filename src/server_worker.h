@@ -32,8 +32,8 @@ protected:
     void HandleMessage(auto *ws, std::string_view str_message, uWS::OpCode opCode);
 
     void handlePing(auto *ws, const json &message, uWS::OpCode opCode);
-    void handleJoin(auto *ws, const json &message, std::shared_ptr<Player> player_ptr);
-    void handleMovement(auto *ws, const json &message, std::shared_ptr<Player> player_ptr);
+    void handleJoin(auto *ws, const json &message, const std::shared_ptr<Player>& player_ptr);
+    void handleMovement(auto *ws, const json &message, const std::shared_ptr<Player>& player_ptr);
 };
 
 #endif

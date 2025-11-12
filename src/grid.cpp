@@ -15,7 +15,7 @@ Grid::Grid(int height, int width, int cell_size)
 
 Grid::~Grid() {}
 
-void Grid::Insert(std::shared_ptr<GameObject> obj) {
+void Grid::Insert(const std::shared_ptr<GameObject>& obj) {
     PROFILE_FUNCTION();
     SystemMonitor::instance().increment_grid_ops();
     
@@ -31,7 +31,7 @@ void Grid::Insert(std::shared_ptr<GameObject> obj) {
 }
 
 
-void Grid::Remove(std::shared_ptr<GameObject> obj) {
+void Grid::Remove(const std::shared_ptr<GameObject>& obj) {
     PROFILE_FUNCTION();
     SystemMonitor::instance().increment_grid_ops();
     
@@ -43,7 +43,7 @@ void Grid::Remove(std::shared_ptr<GameObject> obj) {
     cells_[row][col]->Remove(obj);
 }
 
-void Grid::Update(std::shared_ptr<GameObject> obj, long long current_time) {
+void Grid::Update(const std::shared_ptr<GameObject>& obj, long long current_time) {
     PROFILE_FUNCTION();
     SystemMonitor::instance().increment_grid_ops();
     
@@ -78,6 +78,8 @@ std::vector<std::shared_ptr<GameObject>> Grid::Search(double lower_y, double upp
     int right_col = static_cast<int>(right_x) / cell_size_;
 
     std::vector<std::shared_ptr<GameObject>> all;
+    // Reserve capacity to avoid reallocations (estimate ~50 objects per search)
+    all.reserve(50);
 
     for (int r = lower_row; r <= upper_row; r++) {
         for (int c = left_col; c <= right_col; c++) {
