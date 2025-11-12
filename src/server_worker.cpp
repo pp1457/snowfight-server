@@ -194,16 +194,33 @@ void UpdatePlayerView(auto *ws, auto player_ptr) {
     double right_x = left_x + 2 * constants::FIXED_VIEW_WIDTH;
     
     std::vector<std::shared_ptr<GameObject>> neighbors = grid->Search(lower_y, upper_y, left_x, right_x);
+    
+    // Build batch message with ALL updates
+    auto now = std::chrono::system_clock::now();
+    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()).count();
+    
+    json batch = {
+        {"messageType", "batch_update"},
+        {"timestamp", current_time},
+        {"updates", json::array()}
+    };
      
     for (auto obj : neighbors) {
         if (obj->get_id() != player_ptr->get_id()) {
             if (obj->get_damage() && ExtractPlayerId(obj->get_id()) != player_ptr->get_id() && obj->Collide(player_ptr)) {
                 player_ptr->Hurt(ws, obj->get_damage());
             } else {
-                SystemMonitor::instance().increment_msg_sent();
-                obj->SendMessageToClient(ws, "movement");
+                // Add object data to batch (reuses ToJson method)
+                batch["updates"].push_back(obj->ToJson(current_time, "movement"));
             }
         }
+    }
+    
+    // Send ONE message with all updates
+    if (!batch["updates"].empty()) {
+        ws->send(batch.dump(), uWS::OpCode::TEXT);
+        SystemMonitor::instance().increment_msg_sent();
     }
 }
 

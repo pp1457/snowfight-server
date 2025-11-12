@@ -80,6 +80,7 @@ public:
     bool Expired(long long current_time);
     bool Collide(std::shared_ptr<GameObject> obj);
     void Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damage);
+    json ToJson(long long current_time, std::string messageType = "movement");
     virtual void SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type);
 
 protected:

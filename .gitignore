@@ -3,3 +3,5 @@ server
 src/uWebSockets/*
 src/uWebSockets
 private/*
+
+benchmark/results

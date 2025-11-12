@@ -41,16 +41,11 @@ void GameObject::Hurt(uWS::WebSocket<true, true, PointerToPlayer>* ws, int damag
     SendMessageToClient(ws, "hit");
 }
 
-// Sends a message to the client with the object's current state.
-void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type) {
-    PROFILE_FUNCTION();
-    
-    auto now = std::chrono::system_clock::now();
-    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-    
-    json data = {
+// Builds a JSON object with the game object's current state
+json GameObject::ToJson(long long current_time, std::string messageType) {
+    return {
         {"id", get_id()},
-        {"messageType", type},
+        {"messageType", messageType},
         {"objectType", get_type()},
         {"username", get_username()},
         {"position", {{"x", get_cur_x(current_time)}, {"y", get_cur_y(current_time)}}},
@@ -62,6 +57,15 @@ void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>
         {"timeUpdate", get_time_update()},
         {"newHealth", get_health()}
     };
+}
 
-    ws->send(data.dump(), uWS::OpCode::TEXT);
+// Sends a message to the client with the object's current state.
+void GameObject::SendMessageToClient(uWS::WebSocket<true, true, PointerToPlayer>* ws, std::string type) {
+    PROFILE_FUNCTION();
+    
+    auto now = std::chrono::system_clock::now();
+    long long current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()).count();
+    
+    ws->send(ToJson(current_time, type).dump(), uWS::OpCode::TEXT);
 }
