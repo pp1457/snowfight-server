@@ -66,6 +66,23 @@ void Grid::Update(const std::shared_ptr<GameObject>& obj, long long current_time
     }
 }
 
+void Grid::Relocate(const std::shared_ptr<GameObject>& obj) {
+    PROFILE_FUNCTION();
+    SystemMonitor::instance().increment_grid_ops();
+
+    int old_row = obj->get_row();
+    int old_col = obj->get_col();
+    int new_row = static_cast<int>(obj->get_y()) / cell_size_;
+    int new_col = static_cast<int>(obj->get_x()) / cell_size_;
+
+    if (new_row < 0 || new_col < 0 || new_row >= rows_ || new_col >= cols_) return;
+
+    if ((old_row != new_row) || (old_col != new_col)) {
+        Remove(obj);
+        Insert(obj);
+    }
+}
+
 
 std::vector<std::shared_ptr<GameObject>> Grid::Search(double lower_y, double upper_y, 
                                                       double left_x, double right_x) { 
@@ -85,8 +102,7 @@ std::vector<std::shared_ptr<GameObject>> Grid::Search(double lower_y, double upp
         for (int c = left_col; c <= right_col; c++) {
             if (r >= rows_ || c >= cols_ || r < 0 || c < 0) continue;  // Boundary check
             
-            // Measure lock acquisition time
-            LockTimer timer("Grid::Search_CellLock");
+            PROFILE_LOCK("Grid::Search_CellLock");
             std::shared_lock<std::shared_mutex> lock(*(cells_[r][c]->mtx));
             auto& cell_objs = cells_[r][c]->objects;
             all.insert(all.end(), cell_objs.begin(), cell_objs.end());

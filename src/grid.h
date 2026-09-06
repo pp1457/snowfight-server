@@ -17,13 +17,13 @@ struct Cell {
     Cell() : mtx(std::make_unique<std::shared_mutex>()) {}
 
     void Insert(const std::shared_ptr<GameObject>& obj) {
-        LockTimer timer("Cell::Insert");
+        PROFILE_LOCK("Cell::Insert");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.insert(obj);
     }
 
     void Remove(const std::shared_ptr<GameObject>& obj) {
-        LockTimer timer("Cell::Remove");
+        PROFILE_LOCK("Cell::Remove");
         std::unique_lock<std::shared_mutex> lock(*mtx);
         objects.erase(obj);
     }
@@ -49,6 +49,7 @@ public:
     void Insert(const std::shared_ptr<GameObject>& obj);
     void Remove(const std::shared_ptr<GameObject>& obj);
     void Update(const std::shared_ptr<GameObject>& obj, long long current_time);
+    void Relocate(const std::shared_ptr<GameObject>& obj);
 
     [[nodiscard]] std::vector<std::shared_ptr<GameObject>> Search(double lower_y, double upper_y, double left_x, double right_x);
 };

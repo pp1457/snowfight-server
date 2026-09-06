@@ -34,11 +34,13 @@ void ServerWorker::handleJoin(auto * /*ws*/, const json &message, const std::sha
     long long time_update = message.value("timeUpdate", 0LL);
 
     // Extract position if provided.
-    if (message.contains("position") &&
-        message["position"].contains("x") &&
-        message["position"].contains("y")) {
-        x = message["position"]["x"].get<double>();
-        y = message["position"]["y"].get<double>();
+    if (message.contains("position")) {
+        const json &position = message["position"];
+        if (position.contains("x") && position.contains("y") &&
+            position["x"].is_number() && position["y"].is_number()) {
+            x = position["x"].get<double>();
+            y = position["y"].get<double>();
+        }
     }
 
     if (x < 0 || y < 0 || x > grid->get_width() || y > grid->get_height()) {
@@ -67,18 +69,20 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, const std:
         double new_x = player_ptr->get_x();
         double new_y = player_ptr->get_y();
 
-        if (message.contains("position") &&
-            message["position"].contains("x") &&
-            message["position"].contains("y")) {
-            new_x = message["position"]["x"].get<double>();
-            new_y = message["position"]["y"].get<double>();
+        if (message.contains("position")) {
+            const json &position = message["position"];
+            if (position.contains("x") && position.contains("y") &&
+                position["x"].is_number() && position["y"].is_number()) {
+                new_x = position["x"].get<double>();
+                new_y = position["y"].get<double>();
+            }
         }
 
         player_ptr->set_x(new_x);
         player_ptr->set_y(new_y);
         player_ptr->set_time_update(time_update);
 
-        grid->Update(player_ptr, 0);
+        grid->Relocate(player_ptr);
 
     } else if (message["objectType"] == "snowball") {
         // Handle snowball movement.
@@ -103,17 +107,21 @@ void ServerWorker::handleMovement(auto * /*ws*/, const json &message, const std:
         int damage = message.value("damage", 0);
         bool charging = message.value("charging", false);
 
-        if (message.contains("position") &&
-            message["position"].contains("x") &&
-            message["position"].contains("y")) {
-            x = message["position"]["x"].get<double>();
-            y = message["position"]["y"].get<double>();
+        if (message.contains("position")) {
+            const json &position = message["position"];
+            if (position.contains("x") && position.contains("y") &&
+                position["x"].is_number() && position["y"].is_number()) {
+                x = position["x"].get<double>();
+                y = position["y"].get<double>();
+            }
         }
-        if (message.contains("velocity") &&
-            message["velocity"].contains("x") &&
-            message["velocity"].contains("y")) {
-            vx = message["velocity"]["x"].get<double>();
-            vy = message["velocity"]["y"].get<double>();
+        if (message.contains("velocity")) {
+            const json &velocity = message["velocity"];
+            if (velocity.contains("x") && velocity.contains("y") &&
+                velocity["x"].is_number() && velocity["y"].is_number()) {
+                vx = velocity["x"].get<double>();
+                vy = velocity["y"].get<double>();
+            }
         }
 
         snowball_ptr->set_x(x);
@@ -139,24 +147,28 @@ void ServerWorker::HandleMessage(auto *ws, std::string_view str_message, uWS::Op
     PROFILE_FUNCTION();
     SystemMonitor::instance().increment_msg_processed();
     
-    // Fast path: check for ping without full JSON parse
-    if (str_message.find("\"ping\"") != std::string_view::npos) {
-        json message = json::parse(str_message);
-        handlePing(ws, message, opCode);
+    json message = json::parse(str_message, nullptr, false);
+    if (message.is_discarded() || !message.is_object()) return;
+
+    try {
+        if (str_message.find("\"ping\"") != std::string_view::npos) {
+            handlePing(ws, message, opCode);
+            return;
+        }
+
+        std::string type = message.value("type", "");
+
+        // Retrieve the player's pointer from user data.
+        auto player_ptr = ws->getUserData()->player;
+
+        if (type == "join") {
+            handleJoin(ws, message, player_ptr);
+        }
+        else if (type == "movement") {
+            handleMovement(ws, message, player_ptr);
+        }
+    } catch (const json::exception &) {
         return;
-    }
-    
-    json message = json::parse(str_message);
-    std::string type = message.value("type", "");
-
-    // Retrieve the player's pointer from user data.
-    auto player_ptr = ws->getUserData()->player;
-
-    if (type == "join") {
-        handleJoin(ws, message, player_ptr);
-    }
-    else if (type == "movement") {
-        handleMovement(ws, message, player_ptr);
     }
 }
 
@@ -183,10 +195,12 @@ std::string ExtractPlayerId(const std::string& snowballId) {
 void UpdatePlayerView(auto *ws, auto player_ptr) {
     PROFILE_SCOPE("UpdatePlayerView");
 
-    double lower_y = player_ptr->get_y() - (constants::FIXED_VIEW_HEIGHT);
-    double upper_y = lower_y + 2 * constants::FIXED_VIEW_HEIGHT;
-    double left_x = player_ptr->get_x() - (constants::FIXED_VIEW_WIDTH);
-    double right_x = left_x + 2 * constants::FIXED_VIEW_WIDTH;
+    double half_height = constants::FIXED_VIEW_HEIGHT / 2.0 + constants::VIEW_MARGIN;
+    double half_width = constants::FIXED_VIEW_WIDTH / 2.0 + constants::VIEW_MARGIN;
+    double lower_y = player_ptr->get_y() - half_height;
+    double upper_y = player_ptr->get_y() + half_height;
+    double left_x = player_ptr->get_x() - half_width;
+    double right_x = player_ptr->get_x() + half_width;
     
     // Get neighbors - use auto to allow move semantics/RVO
     auto neighbors = grid->Search(lower_y, upper_y, left_x, right_x);
@@ -266,7 +280,7 @@ void HandleThreadClients(struct us_timer_t * /*t*/) {
         auto player_ptr = ws->getUserData()->player;
         if (player_ptr->get_is_dead()) {
             thread_clients.erase(ws);
-            return;
+            continue;
         }
         if (player_ptr->Expired(current_time)) {
             grid->Remove(player_ptr);

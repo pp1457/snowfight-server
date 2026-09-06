@@ -5,6 +5,10 @@ CFLAGS = -Iinclude -I/usr/local/include -I./src/uWebSockets/src -I./src/uWebSock
 LDFLAGS = -L/usr/local/lib -L./src/uWebSockets/uSockets $(SANITIZER_FLAGS)
 LIBS = -luSockets -lssl -lz -lcrypto -lpthread
 
+ifdef PROFILE
+CFLAGS += -DENABLE_PROFILING
+endif
+
 # Directories
 SRC_DIR = src
 BUILD_DIR = build
