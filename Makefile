@@ -1,6 +1,8 @@
 # Compiler and flags
 CC = clang++
+ifdef TSAN
 SANITIZER_FLAGS = -fsanitize=thread
+endif
 CFLAGS = -Iinclude -I/usr/local/include -I./src/uWebSockets/src -I./src/uWebSockets/uSockets/src -I./src/msgpack -std=c++20 -Wall -Wextra -O2 $(SANITIZER_FLAGS)
 LDFLAGS = -L/usr/local/lib -L./src/uWebSockets/uSockets $(SANITIZER_FLAGS)
 LIBS = -luSockets -lssl -lz -lcrypto -lpthread
