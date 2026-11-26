@@ -1,0 +1,92 @@
+--- a/src/server_worker.cpp	2026-09-06 15:15:36
++++ b/src/server_worker.cpp	2026-10-18 13:54:06
+@@ -1,5 +1,49 @@
+ #include "server_worker.h"
+ #include "profiler.h"
++#include <mach/mach.h>
++#include <algorithm>
++#include <atomic>
++#include <cstdio>
++#include <vector>
++
++// ---- latency-study instrumentation (scratch copy only) ----
++static inline long long inst_now_ns() {
++    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++static inline long long inst_thread_cpu_us() {
++    thread_basic_info_data_t info; mach_msg_type_number_t cnt = THREAD_BASIC_INFO_COUNT;
++    mach_port_t th = mach_thread_self();
++    thread_info(th, THREAD_BASIC_INFO, (thread_info_t)&info, &cnt);
++    mach_port_deallocate(mach_task_self(), th);
++    return (long long)(info.user_time.seconds + info.system_time.seconds) * 1000000LL + info.user_time.microseconds + info.system_time.microseconds;
++}
++struct InstStats {
++    int id = -1;
++    long long msg_ns = 0, tick_ns = 0, obj_ns = 0;
++    long long win_start_ns = 0, cpu_start_us = 0, last_tick_ns = 0;
++    std::vector<double> tick_ms, gap_ms;
++    int pings = 0, msgs = 0;
++};
++static std::atomic<int> inst_next_id{0};
++thread_local InstStats inst;
++struct InstScope { long long &acc; long long t0; explicit InstScope(long long &a) : acc(a), t0(inst_now_ns()) {} ~InstScope() { acc += inst_now_ns() - t0; } };
++static double inst_pct(std::vector<double> v, double q) { if (v.empty()) return 0; std::sort(v.begin(), v.end()); return v[std::min(v.size() - 1, (size_t)(q * v.size()))]; }
++static void inst_maybe_report(size_t clients) {
++    long long now = inst_now_ns();
++    if (inst.id < 0) { inst.id = inst_next_id++; inst.win_start_ns = now; inst.cpu_start_us = inst_thread_cpu_us(); return; }
++    double win = (now - inst.win_start_ns) / 1e9;
++    if (win < 5.0) return;
++    long long cpu = inst_thread_cpu_us();
++    double cpu_pct = 100.0 * (cpu - inst.cpu_start_us) / (win * 1e6);
++    double w = win * 1e9 / 100.0;
++    std::fprintf(stderr, "INST W%d win=%.1fs clients=%zu cpu=%.1f%% msg=%.1f%% tick=%.1f%% obj=%.1f%% msgs=%d pings=%d ticks=%zu tick_ms[p50=%.3f p95=%.3f max=%.3f] gap_ms[p50=%.2f p95=%.2f max=%.2f]\n",
++        inst.id, win, clients, cpu_pct, inst.msg_ns / w, inst.tick_ns / w, inst.obj_ns / w, inst.msgs, inst.pings, inst.tick_ms.size(),
++        inst_pct(inst.tick_ms, .5), inst_pct(inst.tick_ms, .95), inst_pct(inst.tick_ms, 1.0),
++        inst_pct(inst.gap_ms, .5), inst_pct(inst.gap_ms, .95), inst_pct(inst.gap_ms, 1.0));
++    inst.msg_ns = inst.tick_ns = inst.obj_ns = 0; inst.tick_ms.clear(); inst.gap_ms.clear(); inst.pings = inst.msgs = 0;
++    inst.win_start_ns = now; inst.cpu_start_us = cpu;
++}
++// ---- end instrumentation ----
+ 
+ using json = nlohmann::json;
+ 
+@@ -12,8 +56,11 @@
+     auto now = std::chrono::system_clock::now();
+     auto serverTime = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+ 
++    inst.pings++;
++    long long serverUs = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+     json pongMsg = {
+         {"messageType", "pong"},
++        {"serverUs", serverUs},
+         {"serverTime", serverTime},
+         {"clientTime", clientTime}
+     };
+@@ -145,6 +192,7 @@
+ //------------------------------------------------------------------------------
+ void ServerWorker::HandleMessage(auto *ws, std::string_view str_message, uWS::OpCode opCode) {
+     PROFILE_FUNCTION();
++    InstScope inst_scope(inst.msg_ns); inst.msgs++;
+     SystemMonitor::instance().increment_msg_processed();
+     
+     json message = json::parse(str_message, nullptr, false);
+@@ -272,6 +320,11 @@
+ 
+ void HandleThreadClients(struct us_timer_t * /*t*/) {
+     PROFILE_SCOPE("HandleThreadClients");
++    inst_maybe_report(thread_clients.size());
++    long long inst_t0 = inst_now_ns();
++    if (inst.last_tick_ns) inst.gap_ms.push_back((inst_t0 - inst.last_tick_ns) / 1e6);
++    inst.last_tick_ns = inst_t0;
++    struct TickEnd { long long t0; ~TickEnd() { long long d = inst_now_ns() - t0; inst.tick_ns += d; inst.tick_ms.push_back(d / 1e6); } } inst_tick_end{inst_t0};
+     auto clients_copy = thread_clients;
+     auto now = std::chrono::system_clock::now();
+     auto current_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+@@ -291,6 +344,7 @@
+ }
+ void HandleThreadObjects(struct us_timer_t * /*t*/) {
+     PROFILE_SCOPE("HandleThreadObjects");
++    InstScope inst_scope(inst.obj_ns);
+     
+     // Get current time once, outside the loop
+     auto now = std::chrono::system_clock::now();

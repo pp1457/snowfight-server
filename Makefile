@@ -45,4 +45,11 @@ clean:
 run: all
 	./$(TARGET)
 
-.PHONY: all clean run
+# Grid locking microbenchmark (see benchmark/GRID_LOCKS.md)
+bench: bin/grid_lock_bench
+
+bin/grid_lock_bench: benchmark/grid_lock_bench.cpp
+	mkdir -p bin
+	$(CC) -std=c++20 -Wall -Wextra -O2 -pthread $< -o $@
+
+.PHONY: all clean run bench
